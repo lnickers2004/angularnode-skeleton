@@ -1,0 +1,21 @@
+<!DOCTYPE HTML>
+html(data-framework="angularjs")
+  head
+    meta(charset='utf8')
+    link(rel='stylesheet',href='css/style.css')
+  body
+    block body
+      div(id="response-message") !{JSON.stringify(response)}
+      div(class="body")
+      script(src='js/lib/jquery.js')
+      script(src='js/lib/jquery-datatables.min.js')
+      script(src='/js/nvd3-master/lib/d3.v3.js')
+      script(src='/js/nvd3-master/lib/fisheye.js')
+      script(src='/js/nvd3-master/nv.d3.js')
+      script(src='js/lib/angular.min.js')
+      script(src='js/lib/table.js')
+      script(src='https://code.angularjs.org/1.4.3/angular-resource.min.js')
+      script(src='http://cdn.datatables.net/responsive/1.0.6/js/dataTables.responsive.js')
+      script(src='js/main.js')
+      
+      div(id="app-scripts")
