@@ -3,9 +3,10 @@ module.exports.compile	= function(req,res) {
 
 	var fs				= require('fs');
 	var jade			= require('jade');
-	var walk			= require('./walk.js').walk;
+	var path			= require('path');
+	var walk			= require(app.basedir+'/includes/angularnode/walk.js').walk;
 	// WARNING: this may break on *nix systems due to reliance of forward slash in string
-	walk(__dirname+"/../.././client/templates/dev/jade", function(err,files) {
+	walk(app.basedir+"/../client/templates/dev/jade", function(err,files) {
 		files.forEach(function(file){
 			if ( file.substr(-4) != "jade" )
 				return;
@@ -14,7 +15,7 @@ module.exports.compile	= function(req,res) {
 			while ( filename.indexOf('/') != -1 )
 				filename  = filename.substr(filename.indexOf('/')+1);
 			dirname	= dirname.substr(0,dirname.indexOf(filename));
-			fs.exists(__dirname+"/../.././client/templates/prod/html"+dirname,function(exists) {
+			fs.exists(app.basedir+"/../client/templates/prod/html"+dirname,function(exists) {
 				if ( !exists ) {
 					directory	= dirname;
 					while ( directory.indexOf('/') != -1 )
@@ -43,14 +44,13 @@ module.exports.compileFiles	= function(req, res, directory, output, callback) {
 
 	var fs				= require('fs');
 	var uglifyJS		= require("uglify-js");
-	var walk			= require('./walk.js').walk;
+	var walk			= require(app.basedir+'/includes/angularnode/walk.js').walk;
 	res.jsContents	= "";
 	res.jsLoaded	= 0;
 	var itv		= null;
 	// WARNING: this may break on *nix systems due to reliance of forward slash in string
 	walk(module.baseDirectory+directory, function(err,files) {
 		files.forEach(function(file){
-			console.log(file);
 			if ( file.substr(-2) != "js" )
 				return;
 			filename	= file;
@@ -116,7 +116,7 @@ module.exports.compileTemplates	= function(req,res) {
 
 	var fs				= require('fs');
 	var uglifyJS		= require("uglify-js");
-	var walk			= require('./walk.js').walk;
+	var walk			= require(app.basedir+'/includes/angularnode/walk.js').walk;
 	res.jsContents	= "";
 	res.jsFiles		= {};
 	res.jsLoaded	= 0;

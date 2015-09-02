@@ -1,159 +1,108 @@
-
 /**
  * Module dependencies
  */
 
 // basic includes
-express = require('express');
-http    = require('http');
-path    = require('path');
-jade    = require('jade');
-fs		= require('fs');
+express 	= require('express');
+fs		 	= require('fs-extra');
+http	   	= require('http');
+https   	= require('https');
+httpProxy   = require('http-proxy');
+url			= require('url');
+path    	= require('path');
+chalk		= require('chalk'); // pretty console
+jade   		= require('jade');
 
-// compilation
-compile				= require('./server/include/compile').compile;
-compileModules		= require('./server/include/compile').compileModules;
-compileTemplates	= require('./server/include/compile').compileTemplates;
-compileDirectives	= require('./server/include/compile').compileDirectives;
 
-// formalities...
-var api		= require('./server/api').api;
-var auth	= require('./server/auth').auth;
-var output	= require('./server/include/output.js').output;
-var app		= module.exports = express();
+var app		= module.exports.app = express();
+app.basedir	= __dirname;
+settings	= JSON.parse(fs.readFileSync(app.basedir+'/settings.json'));
+if ( settings.hasOwnProperty('basedir') )
+	app.basedir	= __dirname+"/"+settings.basedir;
+// handles ipv4 and ipv6
+app.isLocalConnection	= function(req){
+ 	return (req.connection.remoteAddress == "127.0.0.1" || req.connection.remoteAddress.substr(-"127.0.0.1".length) == "127.0.0.1" || req.connection.remoteAddress == "::1"  || req.connection.remoteAddress == "::ffff:127.0.0.1");
+}
+
+/**
+ * Processes
+ */
+require(app.basedir+'\\includes\\modules.js');
+require(app.basedir+'/includes/dependencies.js');
+require(app.basedir+'/includes/shutdown.js');
+var robots = Robots = require(app.basedir+'/includes/robots.js');
 
 /**
  * Configuration
  */
 
-// all environments
-app.set('port', process.env.PORT || 3222); // we sometimes change the port
-app.set('views', __dirname + '/'); // only 1 view!
-app.set('view engine', 'jade');
-app.set('env', 'development');
-app.env	= app.get('env');
+app.set('settings',settings);
+app.set('port', process.env.PORT || settings.port || 3000); // we sometimes change the port
+app.set('ssl-port', settings['ssl-port'] || 3001);
+app.set('server-name','development');
+app.set('documentroot',app.basedir+"\\www\\");
+if ( settings.hasOwnProperty('documentroot') )
+	app.set('documentroot',app.basedir+"\\"+settings.documentroot+"\\");
 
-// development only
-if (app.get('env') === 'development') {
-	//app.use(express.errorHandler());
-	app.use(function(req,res,next) {
-	  // allows access from a different port, good for business
-	  res.header('Access-Control-Allow-Origin', '*')
-	  res.header('Access-Control-Allow-Credentials', true)
-	  res.header('Access-Control-Allow-Methods', 'POST, GET, PUT, DELETE, OPTIONS')
-	  res.header('Access-Control-Allow-Headers', 'Content-Type')
-
-	  return next();
-	});
+console.log(app.get('documentroot'));
+/**
+ * Dependencies
+ */
+for ( var i in settings.dependencies ) {
+	dep	= settings.dependencies[i];
+	if ( dep.hasOwnProperty('disabled') && dep.disabled ) 
+		continue;
+	method	= "spawn";
+	if ( !dep.hasOwnProperty('method') )
+		method	= dep.method;
+	switch( method ) {
+		case "spawn": 
+			spawn(dep.path,dep.arguments);
+		break;
+		case "exec":
+			// should combine path and arguments to a single string
+		break;
+	}
 }
 
-// compile template files
-if ( app.get('env') === 'build' ) {
-	app.use(compile);
-}
-
-// production only
-if (app.get('env') === 'production') {
-};
-
-// profile is an env config whereby we are running the application 
-// to test out what API requests come back
-if (app.get('env') === 'profile') {
-};
+/**
+ * proxies
+ */
+//require(app.basedir+'\\includes\\forwardProxy.js');
 
 /**
  * Query Population & Authorization
  */
-
-// creates an output object for this particular request
-//app.use(express.cookieParser(''));
-cookieParser	= require('cookie-parser');
-app.use(cookieParser());
-bodyParser	= require('body-parser');
-app.use(bodyParser());
-app.use(function(req,res,next) {
-  module.exports.output	= output(req,res);
-  return next();
-});
+app.architect	= require(app.basedir+'\\includes\\architect.js');
 
 /**
  * Middleware
  */
+//if ( app.get('settings').useThrottling )
+//	require(app.basedir+'\\includes\\throttler.js');
+require(app.basedir+'\\includes\\nocache.js');
+require(app.basedir+'\\includes\\403.js');
+//require(app.basedir+'\\includes\\ip-filter.js');
+//var routes			= require(app.basedir+'\\includes\\routes.js');
+//var httpsProxy		= require(app.basedir+'\\includes\\php-https-proxy.js');
+//var proxy			= require(app.basedir+'\\includes\\php-proxy.js'); // used for PHPv
+require(app.basedir+'\\includes\\404.js');
+app.all('*',express.static(app.get('documentroot')));
+require(app.basedir+'\\includes\\500.js'); // don't know what to do, eek!
 
-//app.use(express.logger('dev'));
-//app.use(express.methodOverride());
-
-/*
-app.use(function(req,res,next) {
-  if ( auth(req,res) )
-    return next();
-});
-*/
-
-// are we looking for a jade file?  render it.
-app.get('*.jade', function(req,res,next) {
-	jade.renderFile("./"+req.path, {}, function(err,html) {
-		res.send(html);
-	});
-});
-
-// send just any old file through the pipe
-app.use(express.static(__dirname+'/client/'));
-
-/**
- * Routes
- */
- 
-
-// API gets precedence
-app.get('/api/',api);
-
-// usually if we are accessing the modules folder
-// or the directives folder we want to do a compile step
-app.use('/modules/', function(req,res,next){
-	compileModules(req,res);
-});
-app.use('/templates/', function(req,res,next){
-	compileTemplates(req,res);
-});
-app.use('/directives/', function(req,res,next){
-	compileDirectives(req,res);
-});
-
-// this is our "index" route
-app.use('/', function(req,res,next) {
-	page	= req.cookies.page;
-	if ( req.cookies.page == undefined ) {
-		res.cookie('page','hello');
-		page	= 'hello';
-	}
-
-	query	= getHTTPQuery(req);
-	if ( query.page != undefined ) {
-		page	= query.page;
-	}
-	// return HTTP query regardless of the type (POST or GET)
-	getHTTPQuery	= function(req) {
-		// HACK: this allows us to read HTTP request key/val pairs across GET/POST
-		query = require('url').parse(req.url,true).query;
-		if ( query.q == undefined )
-			query = req.body;
-		if ( typeof query == "undefined" || typeof query.q == "undefined" )
-			return {};
-		query = JSON.parse(query.q);
-
-		return query;
-	}
-
-	module.exports.output.setResponsePage(page);
-	module.exports.output.render(res);
-});
-
-/**
+/**	
  * Start Server
  */
  
-http.createServer(app).listen(app.get('port'), function () {
-  console.log('Express server listening on port ' + app.get('port'));
+server	= module.exports.server	= http.createServer(app.handle.bind(app)).listen(app.get('port'), function () {
+  console.log('Listening on port ' + chalk.green(app.get('port')));
 });
 
+var options = {
+  key: fs.readFileSync(app.basedir+"/ssl/ssl.key.pem"),
+  cert: fs.readFileSync(app.basedir+"/ssl/ssl.crt.pem")
+};
+secureServer	= https.createServer(options,app.handle.bind(app)).listen(app.get('ssl-port'), function () {
+  console.log('Running HTTPS server on port ' + chalk.green(app.get('ssl-port')));
+});
+console.log(chalk.cyan("Welcome to Ambassador"));

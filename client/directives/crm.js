@@ -5,14 +5,14 @@ link	= function($scope) {
 	        var state = $('#state').val();
 	        var inState = data[7];
 	 		if ( state.length == 0 )
-	 			return true;
+	 				return true;
 	 		console.log(inState);
 	 		return state.toUpperCase()==inState.toUpperCase();
 	    }
 	);
  
-	$http({method: 'GET', url: '/api/?q='+JSON.stringify({'cmd': 'getSampleData'})}).success(function(res){
-		JSONtoTable(JSON.parse(res.message),'#example');
+	$http({method: 'GET', url: '/api/getSampleData'}).success(function(res){
+		JSONtoTable(res,'#example');
 		$('#example table').addClass('display');
 		table	= $('#example table').DataTable({
 			"lengthMenu":[10,20,50],
